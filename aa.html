@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Friendly Fire</title>
+  <style>
+    /* Make the page fill the entire window with no scroll bars */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+    }
+
+    /* Fullscreen canvas */
+    #gameCanvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background: #000;
+    }
+
+    /* Scoreboard (Header) */
+    #scoreBoard {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 70px; /* slightly taller for two lines of text */
+      background: #000; /* black header */
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 2;
+      border-bottom: 2px solid #fff; /* Changed to white */
+    }
+
+    /* Each player's section in the header has a fixed width
+       so removing hearts does not shift the layout */
+    .playerSection {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      width: 200px;   /* Fixed width to prevent layout shift */
+      min-width: 200px;
+    }
+
+    /* Time bar container in the middle */
+    #timeBarContainer {
+      width: 40%;
+      height: 20px;
+      background: #444;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #666;
+    }
+
+    /* Actual time bar that shrinks */
+    #timeBar {
+      height: 100%;
+      width: 100%; /* start at 100%, shrink as time goes */
+      background: linear-gradient(to right, #0f0, #0c0);
+      transition: width 0.5s linear; /* smooth shrinking */
+    }
+
+    /* Overlays for start and end screens */
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #startScreen {
+      z-index: 5; /* On top when showing */
+    }
+
+    #gameOverScreen {
+      z-index: 4; /* Shown above confetti but below start screen if it reappears */
+      display: none;
+    }
+
+    #startScreen h1 {
+      margin-bottom: 30px;
+      font-size: 2em;
+      letter-spacing: 2px;
+      transition: transform 0.3s ease-in-out, color 0.3s ease-in-out;
+    }
+
+    #startScreen h1:hover {
+      color: red;
+      transform: scale(1.2)
+    }
+
+    /* Container for player name inputs */
+    .nameContainer {
+      display: flex;
+      width: 60%;
+      justify-content: space-between;
+      margin-bottom: 20px;
+     
+    }
+
+    .nameBox {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+ 
+
+    /* Common style for all text/number inputs */
+    .inputField {
+      border-radius: 28px;
+      padding: 8px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      outline: none;
+      font-size: 14px;
+      margin-top: 5px;
+      width: 180px;
+    }
+
+    /* Time input container */
+    .timeContainer {
+      margin: 20px 0;
+    }
+
+    
+
+    /* Start button styling (bigger) */
+    .startButton {
+      background: linear-gradient(to bottom, #777, #555);
+      border: none;
+      border-radius: 280px;
+      padding: 15px 30px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 20px;
+      transition: transform 0.2s;
+    }
+
+    .startButton:hover {
+      transform: scale(1.05);
+      background: rgb(154, 154, 154);
+    }
+
+    #gameOverScreen h1 {
+      margin-bottom: 20px;
+    }
+
+    
+
+    #gameOverScreen button {
+      margin-top: 20px;
+      padding: 15px 30px;
+      background: linear-gradient(to bottom, #777, #555);
+      border: none;
+      border-radius: 28px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 20px;
+      transition: transform 0.2s;
+    }
+
+    #gameOverScreen button:hover {
+      transform: scale(1.2);
+      background: rgb(154, 154, 154);
+    }
+
+    /* Confetti container (now on top of everything) */
+    #confettiContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 9999; /* Changed from 3 to 9999 */
+    }
+
+    /* Falling animation for emojis */
+    .confettiEmoji {
+      position: absolute;
+      font-size: 30px;
+      pointer-events: none;
+      animation: fall 3s linear forwards;
+    }
+
+    @keyframes fall {
+      0% {
+        transform: translateY(-50px);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(110vh);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Scoreboard (Header) -->
+<div id="scoreBoard" style="display:none;">
+  <!-- Player 1 Section -->
+  <div id="leftScore" class="playerSection">
+    <span id="p1NameDisplay">Player 1</span>
+    <span id="p1Hearts">❤️❤️❤️❤️❤️</span>
+  </div>
+
+  <!-- Time Bar in the Center -->
+  <div id="timeBarContainer">
+    <div id="timeBar"></div>
+  </div>
+
+  <!-- Player 2 Section -->
+  <div id="rightScore" class="playerSection">
+    <span id="p2NameDisplay">Player 2</span>
+    <span id="p2Hearts">❤️❤️❤️❤️❤️</span>
+  </div>
+</div>
+
+<!-- Confetti Container (on top of everything) -->
+<div id="confettiContainer"></div>
+
+<!-- Start Screen Overlay -->
+<div id="startScreen">
+  <h1>Friendly Fire</h1>
+
+  <!-- Player name inputs side by side -->
+  <div class="nameContainer">
+    <div class="nameBox">
+      <label for="p1NameInput">Player 1 Name:</label>
+      <input type="text" id="p1NameInput" placeholder="Player 1" class="inputField" />
+    </div>
+    <div class="nameBox">
+      <label for="p2NameInput">Player 2 Name:</label>
+      <input type="text" id="p2NameInput" placeholder="Player 2" class="inputField" />
+    </div>
+  </div>
+
+  <!-- Time input -->
+  <div class="timeContainer">
+    <label for="timeInput">Game Duration (1 - 10 minutes):</label>
+    <br/>
+    <input type="number" id="timeInput" min="1" max="10" value="1" class="inputField"/>
+  </div>
+
+  <button class="startButton" onclick="startGame()">Start Game</button>
+</div>
+
+<!-- Game Canvas (Fullscreen) -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- Game Over Screen Overlay -->
+<div id="gameOverScreen">
+  <h1 id="resultText"></h1>
+  <button onclick="resetGame()">Play Again</button>
+</div>
+
+<script>
+/*
+  Friendly Fire:
+  - Player 1 uses W, A, S, D to move, and X to shoot to the right.
+  - Player 2 uses arrow keys to move, and Space to shoot to the left.
+  - Each player starts with 5 lives. Every 3 hits removes 1 heart (out of 5).
+  - The game ends when time runs out or a player's hearts reach 0.
+  - The player with more hearts at the end wins.
+  - If a player wins (not a draw), falling celebration emojis appear for 3s behind the game-over popup.
+*/
+
+// Canvas and context
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Resize canvas to fill screen
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// DOM elements
+const startScreen = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const scoreBoard = document.getElementById('scoreBoard');
+const confettiContainer = document.getElementById('confettiContainer');
+const resultText = document.getElementById('resultText');
+
+const p1NameDisplay = document.getElementById('p1NameDisplay');
+const p2NameDisplay = document.getElementById('p2NameDisplay');
+const p1HeartsDisplay = document.getElementById('p1Hearts');
+const p2HeartsDisplay = document.getElementById('p2Hearts');
+const timeBar = document.getElementById('timeBar');
+
+// Inputs
+const p1NameInput = document.getElementById('p1NameInput');
+const p2NameInput = document.getElementById('p2NameInput');
+const timeInput = document.getElementById('timeInput');
+
+// Player names
+let p1Name = 'Player 1';
+let p2Name = 'Player 2';
+
+// Game parameters
+let gameDuration = 60;  // in seconds (set by user)
+let timeLeft = 60;
+let gameRunning = false;
+let gameInterval = null;
+
+// Scoreboard height
+const scoreboardHeight = 70; // must match #scoreBoard height in CSS
+
+// Players (larger size)
+const player1 = {
+  x: 100,
+  y: 200,
+  width: 30,
+  height: 30,
+  color: 'blue',
+  lives: 5,  // each "life" is represented by a heart
+  hits: 0,   // every 3 hits => lose 1 heart
+  speed: 4
+};
+
+const player2 = {
+  x: 0,    
+  y: 200,
+  width: 30,
+  height: 30,
+  color: 'red',
+  lives: 5,
+  hits: 0,
+  speed: 4
+};
+
+// Bullets arrays (larger bullets)
+let bullets1 = [];  // Bullets from player1
+let bullets2 = [];  // Bullets from player2
+
+// Key states
+const keys = {
+  ArrowUp: false,
+  ArrowDown: false,
+  ArrowLeft: false,
+  ArrowRight: false,
+  Space: false,
+  KeyW: false,
+  KeyA: false,
+  KeyS: false,
+  KeyD: false,
+  KeyX: false
+};
+
+// Listen to keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.code in keys) {
+    keys[e.code] = true;
+    // Fire bullets
+    if (e.code === 'Space') {
+      // Player 2 shoots
+      spawnBullet2();
+    } else if (e.code === 'KeyX') {
+      // Player 1 shoots
+      spawnBullet1();
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code in keys) {
+    keys[e.code] = false;
+  }
+});
+
+// Spawn bullets (larger size)
+function spawnBullet1() {
+  bullets1.push({
+    x: player1.x + player1.width,
+    y: player1.y + player1.height / 2 - 4,
+    width: 10,
+    height: 8,
+    color: 'cyan',
+    speedX: 5,
+    speedY: 0
+  });
+}
+
+function spawnBullet2() {
+  bullets2.push({
+    x: player2.x,
+    y: player2.y + player2.height / 2 - 4,
+    width: 10,
+    height: 8,
+    color: 'orange',
+    speedX: -5,
+    speedY: 0
+  });
+}
+
+// Update hearts display
+function updateHeartsDisplay() {
+  // Repeat the heart emoji for each life
+  p1HeartsDisplay.textContent = '❤️'.repeat(player1.lives);
+  p2HeartsDisplay.textContent = '❤️'.repeat(player2.lives);
+}
+
+// Update game logic
+function update() {
+  if (!gameRunning) return;
+
+  // Move Player 1 (W,A,S,D)
+  if (keys.KeyW) player1.y -= player1.speed;
+  if (keys.KeyS) player1.y += player1.speed;
+  if (keys.KeyA) player1.x -= player1.speed;
+  if (keys.KeyD) player1.x += player1.speed;
+
+  // Constrain Player 1
+  const middleX = canvas.width / 2;
+  if (player1.y < scoreboardHeight) player1.y = scoreboardHeight;
+  if (player1.x < 0) player1.x = 0;
+  if (player1.x + player1.width > middleX) {
+    player1.x = middleX - player1.width;
+  }
+  if (player1.y + player1.height > canvas.height) {
+    player1.y = canvas.height - player1.height;
+  }
+
+  // Move Player 2 (arrow keys)
+  if (keys.ArrowUp) player2.y -= player2.speed;
+  if (keys.ArrowDown) player2.y += player2.speed;
+  if (keys.ArrowLeft) player2.x -= player2.speed;
+  if (keys.ArrowRight) player2.x += player2.speed;
+
+  // Constrain Player 2
+  if (player2.y < scoreboardHeight) player2.y = scoreboardHeight;
+  if (player2.x < middleX) {
+    player2.x = middleX;
+  }
+  if (player2.x + player2.width > canvas.width) {
+    player2.x = canvas.width - player2.width;
+  }
+  if (player2.y + player2.height > canvas.height) {
+    player2.y = canvas.height - player2.height;
+  }
+
+  // Move bullets from Player 1
+  for (let i = 0; i < bullets1.length; i++) {
+    bullets1[i].x += bullets1[i].speedX;
+    bullets1[i].y += bullets1[i].speedY;
+    // Check collision with Player 2
+    if (checkCollision(bullets1[i], player2)) {
+      player2.hits++;
+      bullets1.splice(i, 1);
+      i--;
+      if (player2.hits % 3 === 0) {
+        player2.lives--;
+        updateHeartsDisplay();
+      }
+      continue;
+    }
+    // Remove if out of bounds
+    if (bullets1[i] && bullets1[i].x > canvas.width) {
+      bullets1.splice(i, 1);
+      i--;
+    }
+  }
+
+  // Move bullets from Player 2
+  for (let j = 0; j < bullets2.length; j++) {
+    bullets2[j].x += bullets2[j].speedX;
+    bullets2[j].y += bullets2[j].speedY;
+    // Check collision with Player 1
+    if (checkCollision(bullets2[j], player1)) {
+      player1.hits++;
+      bullets2.splice(j, 1);
+      j--;
+      if (player1.hits % 3 === 0) {
+        player1.lives--;
+        updateHeartsDisplay();
+      }
+      continue;
+    }
+    // Remove if out of bounds
+    if (bullets2[j] && bullets2[j].x < 0) {
+      bullets2.splice(j, 1);
+      j--;
+    }
+  }
+
+  // Check for game over by lives
+  if (player1.lives <= 0 || player2.lives <= 0) {
+    endGame();
+  }
+}
+
+// Check collision (simple bounding box)
+function checkCollision(a, b) {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+// Render
+function render() {
+  if (!gameRunning) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw middle divider (below scoreboard)
+  ctx.strokeStyle = 'white';
+  ctx.beginPath();
+  ctx.moveTo(canvas.width / 2, scoreboardHeight);
+  ctx.lineTo(canvas.width / 2, canvas.height);
+  ctx.stroke();
+
+  // Draw players
+  ctx.fillStyle = player1.color;
+  ctx.fillRect(player1.x, player1.y, player1.width, player1.height);
+
+  ctx.fillStyle = player2.color;
+  ctx.fillRect(player2.x, player2.y, player2.width, player2.height);
+
+  // Draw bullets
+  bullets1.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+  });
+
+  bullets2.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+  });
+
+  requestAnimationFrame(render);
+}
+
+// Start the game
+function startGame() {
+  // Read names
+  p1Name = p1NameInput.value.trim() || 'Player 1';
+  p2Name = p2NameInput.value.trim() || 'Player 2';
+  p1NameDisplay.textContent = p1Name;
+  p2NameDisplay.textContent = p2Name;
+
+  // Read the selected time (in minutes)
+  let minutes = parseInt(timeInput.value, 10);
+  if (isNaN(minutes) || minutes < 1 || minutes > 10) {
+    minutes = 1; // default fallback
+  }
+  gameDuration = minutes * 60;
+  timeLeft = gameDuration;
+
+  // Reset players and bullets
+  resetPlayers();
+
+  // Show scoreboard, hide start screen
+  scoreBoard.style.display = 'flex';
+  startScreen.style.display = 'none';
+  gameOverScreen.style.display = 'none';
+
+  // Update hearts display
+  updateHeartsDisplay();
+
+  // Start the game loop
+  gameRunning = true;
+  requestAnimationFrame(render);
+
+  // Initialize the time bar
+  timeBar.style.width = '100%';
+
+  // Use setInterval to track time
+  gameInterval = setInterval(() => {
+    if (!gameRunning) return;
+    timeLeft--;
+
+    // Update time bar (percentage of time left)
+    const fraction = timeLeft / gameDuration;
+    timeBar.style.width = (fraction * 100) + '%';
+
+    // Check if time is up
+    if (timeLeft <= 0) {
+      endGame();
+    }
+  }, 1000);
+
+  // Start updates at ~60 FPS
+  loopUpdates();
+}
+
+// Recursive update loop
+function loopUpdates() {
+  if (!gameRunning) return;
+  update();
+  setTimeout(loopUpdates, 1000 / 60);
+}
+
+// End the game
+function endGame() {
+  gameRunning = false;
+  clearInterval(gameInterval);
+
+  let winner = '';
+  if (player1.lives > player2.lives) {
+    winner = p1Name;
+  } else if (player2.lives > player1.lives) {
+    winner = p2Name;
+  }
+
+  if (winner) {
+    // Not a draw -> show confetti behind the gameOver popup
+    spawnConfetti();
+    resultText.textContent = `${winner} Wins!`;
+  } else {
+    resultText.textContent = 'It\'s a Draw!';
+  }
+
+  // Show game over screen
+  gameOverScreen.style.display = 'flex';
+}
+
+// Reset game to initial state
+function resetGame() {
+  // Hide game over screen, show start screen
+  startScreen.style.display = 'flex';
+  gameOverScreen.style.display = 'none';
+  scoreBoard.style.display = 'none';
+  resetPlayers();
+}
+
+// Reset player positions and stats
+function resetPlayers() {
+  // Player 1
+  player1.x = 100;
+  player1.y = (canvas.height / 2);
+  player1.lives = 5;
+  player1.hits = 0;
+
+  // Player 2
+  player2.x = canvas.width - 120;
+  player2.y = (canvas.height / 2);
+  player2.lives = 5;
+  player2.hits = 0;
+
+  // Clear bullets
+  bullets1 = [];
+  bullets2 = [];
+}
+
+/* 
+  Spawn falling confetti emojis for 3 seconds 
+  behind the gameOver popup (now on top of everything).
+*/
+function spawnConfetti() {
+  const emojis = ["🎉","🎊","✨","💥","🎈","💫"];
+  let elapsed = 0;
+  const spawnInterval = 200; // ms
+  const duration = 3000;     // total confetti time
+
+  let intervalId = setInterval(() => {
+    // Create a few emojis each interval
+    for (let i = 0; i < 5; i++) {
+      const emojiEl = document.createElement("div");
+      emojiEl.className = "confettiEmoji";
+      emojiEl.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      // Random horizontal position
+      const startLeft = Math.random() * window.innerWidth; 
+      emojiEl.style.left = startLeft + "px";
+      // Start slightly above the top
+      emojiEl.style.top = "-50px";
+
+      confettiContainer.appendChild(emojiEl);
+
+      // Remove after 3s (when the animation finishes)
+      setTimeout(() => {
+        if (emojiEl.parentNode) {
+          emojiEl.parentNode.removeChild(emojiEl);
+        }
+      }, 3000);
+    }
+
+    elapsed += spawnInterval;
+    if (elapsed >= duration) {
+      clearInterval(intervalId);
+    }
+  }, spawnInterval);
+}
+</script>
+
+</body>
+</html>
